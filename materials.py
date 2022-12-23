@@ -13,7 +13,11 @@ def find_group(material: bpy.types.Material, name: str) -> bpy.types.ShaderNodeG
 
 
 def write_material(material_name: str, result_file_path: str):
-    material: bpy.types.Material = bpy.data.materials[material_name]
+    material: bpy.types.Material
+    if 'URHO.'+material_name in bpy.data.materials:
+        material = bpy.data.materials['URHO.'+material_name]
+    else:
+        material = bpy.data.materials[material_name]
     
     group: bpy.types.ShaderNodeGroup
 
