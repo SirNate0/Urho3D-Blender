@@ -2179,12 +2179,14 @@ def DecomposeMesh(scene, meshObj, tData, tOptions, errorsMem):
     if tOptions.doSortGeometry:
         # Sort geometriesList, materialsList, materialGeometryMap, updatedGeometryIndices
         for _ in range(1):
-            print(geometriesList)
-            print(materialGeometryMap)
-            print(materialsList)
-            print(updatedGeometryIndices)
+            print('geometriesList',geometriesList)
+            print('materialGeometryMap',materialGeometryMap)
+            print('materialsList',materialsList)
+            print('updatedGeometryIndices',updatedGeometryIndices)
+            originalMatGeoMap = materialGeometryMap
+            originalMatGeoIndices = updatedGeometryIndices
             
-            print(len(mesh.materials))
+            print('mesh.materials:',len(mesh.materials))
             print(*mesh.materials)
             
             if any(m.name not in materialGeometryMap for m in mesh.materials):
@@ -2192,7 +2194,11 @@ def DecomposeMesh(scene, meshObj, tData, tOptions, errorsMem):
                 print(f'Could not sort geometry. Could not find material(s) {bad} in {materialGeometryMap}')
                 break;
             
+            INVALID_IDX = 1e100
+            
             mapping = {m.name:i for i,m in enumerate(mesh.materials)}
+            if len(mesh.materials) == 0 and len(materialGeometryMap) > 0:
+                mapping[None] = materialGeometryMap[None] # Sort no (default) materials last
             print(mapping)
             
             maplist = [mapping[m.materialName] for m in geometriesList]
@@ -2202,6 +2208,9 @@ def DecomposeMesh(scene, meshObj, tData, tOptions, errorsMem):
             
             materialGeometryMap = { n:maplist[i] for n,i in materialGeometryMap.items()}
             updatedGeometryIndices = { maplist[i] for i in updatedGeometryIndices}
+            
+            print('materialGeometryMap',materialGeometryMap)
+            print('updatedGeometryIndices',updatedGeometryIndices)
                                    
             maplist = [mapping[m.name] for m in materialsList]
             print('Before',materialsList)
