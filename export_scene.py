@@ -675,13 +675,13 @@ def NELExportObject(object, XMLparent, ids):
     
         
     modelFile = None
-    if object.type == 'MESH' and not isPhysicsForParent:
+    if object.type == 'MESH':
         modelFile = f"Models/{object.name}.mdl"
         materials = ';'.join(f"Materials/{m.name}.xml" for m in object.data.materials)
-        
-        comp = XmlAddComponent(node, type='AnimatedModel', ids=ids)
-        XmlAddAttribute(comp, name="Model", value="Model;" + modelFile)
-        XmlAddAttribute(comp, name="Material", value="Material;" + materials)
+        if not isPhysicsForParent:
+            comp = XmlAddComponent(node, type='AnimatedModel', ids=ids)
+            XmlAddAttribute(comp, name="Model", value="Model;" + modelFile)
+            XmlAddAttribute(comp, name="Material", value="Material;" + materials)
     elif object.type == 'LIGHT':
         comp = XmlAddComponent(node, type="Light", ids=ids)
         ltype = object.data.type
@@ -710,8 +710,8 @@ def NELExportObject(object, XMLparent, ids):
         if isPhysicsForParent != 'SHAPE':
             comp = XmlAddComponent(node, type="RigidBody", ids=ids)
             #XmlAddAttribute(comp, name="Is Enabled", value=True ) # # bool
-            # the rb.enabled is the "dynamic" checkbox. Though perhaps we will change later and use only the 'ACTIVE' and use the 'dynamic' for the "Is Trigger"?
-            XmlAddAttribute(comp, name="Mass", value=rb.mass if rb.type == 'ACTIVE' and rb.enabled else '0') # # float
+            # the rb.enabled is the "dynamic" checkbox. Though perhaps we will change later and use only the 'ACTIVE' and use the 'dynamic' for the "Is Trigger"? YES: therb.enabled is still controlled by the checkbox even when not visible (when rb.type='PASSIVE').
+            XmlAddAttribute(comp, name="Mass", value=rb.mass if rb.type == 'ACTIVE' else '0') # # float
             XmlAddAttribute(comp, name="Friction", value=rb.friction ) # # float
             #XmlAddAttribute(comp, name="Anisotropic Friction", value=rb. ) # # Vector3
             #XmlAddAttribute(comp, name="Rolling Friction", value=rb. ) # # float
@@ -733,7 +733,7 @@ def NELExportObject(object, XMLparent, ids):
             #XmlAddAttribute(comp, name="Collision Event Mode", value=rb. ) # # int
             #XmlAddAttribute(comp, name="Use Gravity", value=rb. ) # # bool
             XmlAddAttribute(comp, name="Is Kinematic", value=rb.kinematic ) # # bool
-            #XmlAddAttribute(comp, name="Is Trigger", value=rb. ) # # bool
+            XmlAddAttribute(comp, name="Is Trigger", value=not rb.enabled ) # # bool
             #XmlAddAttribute(comp, name="Gravity Override", value=rb. ) # # Vector3
         
         shapes = {
