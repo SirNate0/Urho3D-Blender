@@ -649,7 +649,8 @@ def NELExportObject(object, XMLparent, ids):
     # Skip "Hidden" objects with a . as the start of their name.
     if object.name.startswith('.'):
         return
-    
+    isMultiSphereHullShape = "MultiSphereHullShape" in object.modifiers or "MultiSphereHull" in object.modifiers
+    isMultiSphereHullShape |= any(m.type == 'NODES' and m.node_group.name in ('MultiSphereHull', 'MultiSphereHullShape') for m in object.modifiers)
     isPhysicsForParent = False
     if object.name.startswith('PHYS.'):
         node = XMLparent
@@ -724,7 +725,7 @@ def NELExportObject(object, XMLparent, ids):
             XmlAddAttribute(comp, name="Angular Damping", value=rb.angular_damping ) # # float
             #XmlAddAttribute(comp, name="Linear Rest Threshold", value=rb. ) # # float
             #XmlAddAttribute(comp, name="Angular Rest Threshold", value=rb. ) # # float
-            cgroup = sum(2**i for i,v in enumerate(rb.collision_collections))
+            cgroup = sum(2**i if v else 0 for i,v in enumerate(rb.collision_collections))
             XmlAddAttribute(comp, name="Collision Layer", value=cgroup ) # # int
             #XmlAddAttribute(comp, name="Collision Mask", value=rb. ) # # int
             #XmlAddAttribute(comp, name="Contact Threshold", value=rb. ) # # float
@@ -751,27 +752,58 @@ def NELExportObject(object, XMLparent, ids):
         }
         model_shapes = ("CONVEX_HULL","MESH")
         
-        colcomp = XmlAddComponent(node, type="CollisionShape", ids=ids)
-        #XmlAddAttribute(colcomp, name="Is Enabled", value=True ) # bool
-        if rb.collision_shape in shapes:
-            XmlAddAttribute(colcomp, name="Shape Type", value=shapes[rb.collision_shape]) # enum
-            if rb.use_margin:
-                XmlAddAttribute(colcomp, name="Collision Margin", value=rb.collision_margin ) # float
-            if rb.collision_shape in model_shapes:
-                XmlAddAttribute(colcomp, name="Model", value=f"Model;{modelFile}") # ResourceRef
-                #XmlAddAttribute(colcomp, name="LOD Level", value=rb. ) # int
-                #XmlAddAttribute(colcomp, name="CustomGeometry ComponentID", value=rb. ) # int
-        elif rb.collision_shape == "COMPOUND_PARENT":
-            log.warning("Currently compound shapes are not handled")
-            #XmlAddAttribute(colcomp, name="Shape Type", value=shapes[rb.collision_shape]) # enum
+        if isMultiSphereHullShape:
+            colcomp = XmlAddComponent(node, type="MultiSphereHullShape", ids=ids)
+            XmlAddAttribute(colcomp, name="Shape Type", value="MultiSphereHull") # enum
+            
         else:
-            log.warning("Unknown collision shape " + rb.collision_shape)
+            colcomp = XmlAddComponent(node, type="CollisionShape", ids=ids)
+            #XmlAddAttribute(colcomp, name="Is Enabled", value=True ) # bool
+            if rb.collision_shape in shapes:
+                XmlAddAttribute(colcomp, name="Shape Type", value=shapes[rb.collision_shape]) # enum
+                if rb.use_margin:
+                    XmlAddAttribute(colcomp, name="Collision Margin", value=rb.collision_margin ) # float
+                if rb.collision_shape in model_shapes:
+                    XmlAddAttribute(colcomp, name="Model", value=f"Model;{modelFile}") # ResourceRef
+                    #XmlAddAttribute(colcomp, name="LOD Level", value=rb. ) # int
+                    #XmlAddAttribute(colcomp, name="CustomGeometry ComponentID", value=rb. ) # int
+            elif rb.collision_shape == "COMPOUND_PARENT":
+                log.warning("Currently compound shapes are not handled")
+                #XmlAddAttribute(colcomp, name="Shape Type", value=shapes[rb.collision_shape]) # enum
+            else:
+                log.warning("Unknown collision shape " + rb.collision_shape)
             
         if isPhysicsForParent:
             pos,rot,scale = NELExtractPositionRotScale(object)
             XmlAddAttribute(colcomp, name="Size", value=Vector3ToString(scale) ) # Vector3
+            # I don't know why but I have to reverse x for the position it seems, at least for the multisphere.
+            # But it doesn't fully fix it. The leg is still broken, especially if rotation has not been applied.
+            pos.x *= -1
             XmlAddAttribute(colcomp, name="Offset Position", value=Vector3ToString(pos) ) # Vector3
             XmlAddAttribute(colcomp, name="Offset Rotation", value=Vector4ToString(rot) ) # Quaternion
+            
+            """
+            From testing:
+            - Parent "Bone Relative" is bad. It breaks the orientation.
+                - I think perhaps the object.matrix_parent_inverse is not set correctly in that case - it seems to be identity.
+            """
+        
+            
+        if isMultiSphereHullShape:
+            spheres = XmlAddAttribute(colcomp, name="Spheres")
+            o = object.data
+            minr = 1e10
+            for e in o.edges:
+                v1,v2 = [o.vertices[v].co for v in e.vertices]
+                pt = 0.5*(v1+v2)
+                r = 0.5*(v1-v2).length
+                minr = min(r,minr)
+                v4 = Vector4ToString([pt.x,pt.z,-pt.y,r])
+                XmlAddVariant(spheres, value=v4, type="Vector4")
+            if rb.use_margin:
+                XmlAddAttribute(colcomp, name="Collision Margin", value=rb.collision_margin ) # float
+                if rb.collision_margin > minr:
+                    log.warning("Multisphere Collision Margin > Minimum Radius")
         
         
     
