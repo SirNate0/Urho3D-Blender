@@ -470,6 +470,7 @@ def NELExtractPositionRotScale(object):
         
         # Get the local matrix (relative to parent)
         objMatrix = object.matrix_local
+        #objMatrix = object.matrix_parent_inverse @ object.matrix_local
         
         # Worked only on the Back view
         #if object.type == 'LIGHT':
@@ -482,6 +483,9 @@ def NELExtractPositionRotScale(object):
         if object.parent and object.parent_type == 'BONE':
             onBone = True
             bone = object.parent.data.bones[object.parent_bone]
+            # Need this to handle both the Bone and Bone Relative case
+            objMatrix = bone.matrix_local.inverted() @ object.matrix_basis
+            objMatrix.translation.y -= bone.length
             objMatrix = Matrix(objMatrix) # Copy so we don't modify the object
             objMatrix[1][3] += bone.length
             backup = objMatrix.copy()
@@ -778,14 +782,19 @@ def NELExportObject(object, XMLparent, ids):
             XmlAddAttribute(colcomp, name="Size", value=Vector3ToString(scale) ) # Vector3
             # I don't know why but I have to reverse x for the position it seems, at least for the multisphere.
             # But it doesn't fully fix it. The leg is still broken, especially if rotation has not been applied.
-            pos.x *= -1
+            #pos.x *= -1 # Nope, this was a bug.
             XmlAddAttribute(colcomp, name="Offset Position", value=Vector3ToString(pos) ) # Vector3
             XmlAddAttribute(colcomp, name="Offset Rotation", value=Vector4ToString(rot) ) # Quaternion
             
             """
             From testing:
+            - If re-parenting to the same thing is broken in Blender, it will probably be broken in the export. I'm not sure why it broke for one of the bones, but clearing parent (keep transform) and then reparenting seemed to solve one of the times.
             - Parent "Bone Relative" is bad. It breaks the orientation.
                 - I think perhaps the object.matrix_parent_inverse is not set correctly in that case - it seems to be identity.
+                - I think I fixed that.
+                
+                Turns out part of the issue is as follows: You cannot mix Bone and Bone Relative for a single bone
+                https://projects.blender.org/blender/blender/issues/63320
             """
         
             
@@ -798,7 +807,7 @@ def NELExportObject(object, XMLparent, ids):
                 pt = 0.5*(v1+v2)
                 r = 0.5*(v1-v2).length
                 minr = min(r,minr)
-                v4 = Vector4ToString([pt.x,pt.z,-pt.y,r])
+                v4 = Vector4ToString([-pt.x,pt.z,-pt.y,r])
                 XmlAddVariant(spheres, value=v4, type="Vector4")
             if rb.use_margin:
                 XmlAddAttribute(colcomp, name="Collision Margin", value=rb.collision_margin ) # float
