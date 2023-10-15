@@ -3,6 +3,7 @@
 
 import bpy
 import os
+import mathutils
 
 
 def find_group(material: bpy.types.Material, name: str) -> bpy.types.ShaderNodeGroup:
@@ -10,6 +11,8 @@ def find_group(material: bpy.types.Material, name: str) -> bpy.types.ShaderNodeG
         if type(node) is bpy.types.ShaderNodeGroup and node.node_tree.name == name:
             return node
     return None
+
+USE_SRGB = True
 
 
 def write_material(material_name: str, result_file_path: str):
@@ -38,6 +41,9 @@ def write_unlit_material(group: bpy.types.ShaderNodeGroup, result_file_path:str)
     diff_rgb: bpy.types.Color = group.inputs['MatDiffColor.rgb (float3)'].default_value
     diff_a: float = group.inputs['MatDiffColor.a (float)'].default_value
     diffmap: bool = group.inputs['DIFFMAP (bool)'].default_value
+    
+    if USE_SRGB:
+        diff_rgb = mathutils.Color(diff_rgb[:3]).from_scene_linear_to_srgb()
 
     diff_map_name: str = "Unknown"
     if group.inputs['DiffMap.rgb (float3) (unit="diffuse")'].is_linked:
@@ -124,6 +130,12 @@ def write_litsolid_material(group: bpy.types.ShaderNodeGroup, result_file_path:s
     alpha_blending: bool = group.inputs['ALPHA BLENDING (bool)'].default_value
     two_sided: bool = group.inputs['TWO SIDED (bool)'].default_value
     
+    if USE_SRGB:
+        print(diff_rgb)
+        diff_rgb = mathutils.Color(diff_rgb[:3]).from_scene_linear_to_srgb()
+        spec_rgb = mathutils.Color(spec_rgb[:3]).from_scene_linear_to_srgb()
+        emis_rgb = mathutils.Color(emis_rgb[:3]).from_scene_linear_to_srgb()
+        
     technique: str
     if diffmap:
         technique = "Diff"
